@@ -5,9 +5,10 @@ adapter tracks the current user and token, checks registration when the app
 resumes, and exposes incoming messages and notification taps.
 
 **Unofficial, unpublished development package.** Targets Android/iOS with Flutter
-3.38.1 and Dart 3.10 or newer. Real Android foreground delivery, background taps
-and terminated launches have passed; iOS delivery and Anythink-originated sending
-remain separate gates in the checkout's `integration/native_host/VALIDATION.md`.
+3.38.1 and Dart 3.10 or newer. Real Android/iOS foreground delivery and token
+rotation have passed, plus Android background taps and terminated launches.
+See the checkout's `integration/native_host/VALIDATION.md` for remaining checks,
+including iOS background delivery and Anythink-originated sending.
 
 ## Set up Firebase
 
@@ -19,6 +20,11 @@ Android needs API 23+ and a compatible Google Play services device. iOS needs
 15+, Push Notifications and background configuration, APNs credentials in Firebase,
 and the required method swizzling. Your app owns notification channels, foreground
 display and Firebase auto-initialization policy.
+
+If your app disables Firebase auto-initialization, explicitly enable it after
+the user opts in with `await FirebaseMessaging.instance.setAutoInitEnabled(true)`.
+On iOS, FlutterFire defers APNs registration until then; the adapter reports
+`apnsPending` while no APNs token is available.
 
 Sign in to Anythink with an application user that has API access and
 `anythink_tenant_devices:create`. For sending **from Anythink**, also configure

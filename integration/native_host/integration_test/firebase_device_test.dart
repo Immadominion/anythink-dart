@@ -16,7 +16,7 @@ import 'package:path_provider/path_provider.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets(
-    'real Android Firebase registration and selected provider checks',
+    'real mobile Firebase registration and selected provider checks',
     (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -42,10 +42,15 @@ void main() {
 }
 
 Future<void> _run() async {
-  _require(Platform.isAndroid, 'android_required');
+  _require(Platform.isAndroid || Platform.isIOS, 'mobile_platform_required');
   final cache = await getTemporaryDirectory();
-  final inputFile = File('${cache.path}/anythink-firebase-input.json');
-  final readyFile = File('${cache.path}/anythink-firebase-ready.json');
+  final directory = Platform.isIOS
+      ? '${cache.path}/anythink-physical-session'
+      : cache.path;
+  final inputFile = File(
+    '$directory/${Platform.isIOS ? 'anythink-device-input.json' : 'anythink-firebase-input.json'}',
+  );
+  final readyFile = File('$directory/anythink-firebase-ready.json');
   _require(await inputFile.exists(), 'runtime_input_missing');
   _require(!await readyFile.exists(), 'preexisting_provider_state');
   final bytes = await inputFile.readAsBytes();
@@ -67,6 +72,7 @@ Future<void> _run() async {
       appId: config['appId'] as String,
       messagingSenderId: config['messagingSenderId'] as String,
       projectId: config['projectId'] as String,
+      iosBundleId: config['iosBundleId'] as String?,
     ),
   );
   final messaging = FirebaseMessaging.instance;
@@ -78,13 +84,43 @@ Future<void> _run() async {
   final push = AnythinkFirebasePush(
     client: client,
     messaging: messaging,
-    metadata: const {'purpose': 'sdk-native-validation', 'device': 'Seeker'},
+    metadata: {
+      'purpose': 'sdk-native-validation',
+      'device': Platform.isIOS ? 'iPhone' : 'Seeker',
+    },
     onError: (error, _) => automaticErrors.add(error),
   );
   StreamSubscription<RemoteMessage>? subscription;
   var tokenCreated = false;
+  var enabledAutoInit = false;
   try {
     _require(!messaging.isAutoInitEnabled, 'unexpected_auto_init');
+    var settings = await messaging.getNotificationSettings();
+    if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+      _pass('awaiting_user_notification_permission');
+      settings = await push.requestPermission();
+    }
+    _require(
+      settings.authorizationStatus == AuthorizationStatus.authorized,
+      'notification_permission_not_granted',
+    );
+    if (Platform.isIOS) {
+      // FlutterFire defers APNs registration while auto-init is disabled.
+      // The test host opts in after permission; the SDK leaves this app-owned
+      // policy unchanged. Cleanup disables it before retiring the test token.
+      enabledAutoInit = true;
+      tokenCreated = true;
+      await messaging.setAutoInitEnabled(true);
+      final deadline = DateTime.now().add(const Duration(seconds: 60));
+      String? apnsToken;
+      do {
+        apnsToken = await messaging.getAPNSToken();
+        if (apnsToken != null && apnsToken.isNotEmpty) break;
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      } while (DateTime.now().isBefore(deadline));
+      _require(apnsToken != null && apnsToken.isNotEmpty, 'apns_token_missing');
+      _pass('real_apns_token_available');
+    }
     final token = await messaging.getToken().timeout(
       const Duration(seconds: 60),
     );
@@ -113,17 +149,6 @@ Future<void> _run() async {
       'backend_identity_mismatch',
     );
     _pass('ordinary_backend_identity');
-    var settings = await messaging.getNotificationSettings();
-    if (settings.authorizationStatus != AuthorizationStatus.authorized) {
-      // The user taps the real OS prompt. No test code grants a permission or
-      // modifies device settings. Parent orchestrator coordinates that action.
-      _pass('awaiting_user_notification_permission');
-      settings = await push.requestPermission();
-    }
-    _require(
-      settings.authorizationStatus == AuthorizationStatus.authorized,
-      'notification_permission_not_granted',
-    );
     final registration = await push.synchronize();
     _require(
       registration.status == PushSyncStatus.registered ||
@@ -199,21 +224,35 @@ Future<void> _run() async {
     _require(client.auth.currentSession == null, 'sign_out_retained_session');
     _pass('explicit_stop_and_backend_logout');
   } finally {
-    await subscription?.cancel();
-    await push.dispose();
-    if (client.auth.currentSession != null) await client.auth.signOut();
-    await client.close();
-    if (tokenCreated) {
+    var cleanupFailed = false;
+    Future<void> attempt(Future<void> Function() action) async {
       try {
-        await messaging.deleteToken();
+        await action();
       } catch (_) {
-        throw const _GateFailure('test_token_retirement_failed');
+        cleanupFailed = true;
       }
     }
-    // Firebase's default app cannot be deleted. The process exits with auto
-    // initialization still disabled, after retiring this test registration.
-    if (await readyFile.exists()) await readyFile.delete();
+
+    await attempt(() async => subscription?.cancel());
+    await attempt(push.dispose);
+    await attempt(() async {
+      if (client.auth.currentSession != null) {
+        final result = await client.auth.signOut();
+        _require(result.remoteError == null, 'cleanup_logout_unconfirmed');
+      }
+    });
+    await attempt(client.close);
+    if (enabledAutoInit) {
+      await attempt(() => messaging.setAutoInitEnabled(false));
+    }
+    if (tokenCreated) {
+      await attempt(messaging.deleteToken);
+    }
+    await attempt(() async {
+      if (await readyFile.exists()) await readyFile.delete();
+    });
     input.clear();
+    _require(!cleanupFailed, 'required_cleanup_unconfirmed');
   }
   _pass('test_token_retired_and_private_handoff_removed');
 }

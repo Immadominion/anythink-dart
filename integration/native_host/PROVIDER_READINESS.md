@@ -25,14 +25,44 @@ Server service-account, APNs and App Store private keys belong in the intended
 server consoles, never in the SDK or app bundle. Client IDs do not replace
 backend token verification.
 
+## Physical iOS provider tests
+
+Build `integration_test/native_sign_in_device_test.dart` for sign-in or
+`integration_test/firebase_device_test.dart` for push. Use a separate signed
+profile build, following [physical iOS setup](PHYSICAL_IOS.md). Select
+`Runner/ProviderValidation.entitlements` on the Runner target only, with a
+development profile covering Apple sign-in and push.
+
+For sandbox push, the native Firebase Messaging build must also select sandbox
+APNs. FlutterFire currently uses its `DEBUG` preprocessor flag for this; a Dart
+profile build alone does not select sandbox. Keep this override in the isolated
+test build. Add the `remote-notification` background mode there.
+
+Both runners take `--app`, `--ipa`, `--flutter` and `--workspace` paths:
+
+| Runner under `tool/` | Options |
+| --- | --- |
+| `run_ios_native_auth_validation.py` | `--provider google\|apple --phase cancel\|exchange` |
+| `run_ios_firebase_validation.py` | `--mode delivery\|rotation` |
+
+Apple exchange is deliberately unavailable until an ordinary Apple test identity
+is configured. Google uses the dedicated identity in the private OAuth config.
+Push uses the private Firebase plist and ordinary live-contract user. No
+credential is embedded in the build.
+
+In delivery mode, send the console test only after the runner reports
+`FIREBASE_READY`. Use title `Anythink SDK validation` and body
+`Foreground delivery check`. The token handoff is private and removed after the
+run. Rotation mode requires no console message. Restore the normal host afterward.
+
 ## Remaining checks
 
 See [validation](../../docs/validation.md) for completed checks. Still required:
 
-- Successful Google and Apple exchange, Apple cancellation, repeated sign-in,
+- Successful Google and Apple exchange, repeated sign-in,
   identity mismatch and account changes while native UI is pending.
-- Physical iOS push delivery, token refresh, denial, dead tokens, action buttons
-  and account-switch ownership behavior.
+- iOS background/terminated push delivery; permission denial, dead tokens,
+  action buttons and account-switch ownership behavior on both platforms.
 - StoreKit sandbox purchase, pending/cancel states, signed transaction
   verification, entitlement before completion, restore and interrupted delivery.
 - Secure-storage lock/unlock, backup, upgrade and key-invalidation behavior.

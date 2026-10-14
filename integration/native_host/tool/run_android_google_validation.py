@@ -26,13 +26,13 @@ STAGES = {
     "waiting_for_user_start_cancel",
     "waiting_for_user_start_exchange",
     "cancel_native_chooser",
-    "select_only_dedicated_google_test_account",
+    "select_only_dedicated_provider_test_account",
 }
 EXCHANGE_GATES = {
-    "native_google_token_verified_as_ordinary_backend_user",
-    "native_google_session_in_real_secure_store",
-    "native_google_session_refresh_and_identity",
-    "native_google_logout_and_secure_store_clear",
+    "native_provider_token_verified_as_ordinary_backend_user",
+    "native_provider_session_in_real_secure_store",
+    "native_provider_session_refresh_and_identity",
+    "native_provider_logout_and_secure_store_clear",
 }
 
 
@@ -66,7 +66,7 @@ def main(phase="exchange"):
     }
     started = time.monotonic()
     command = [
-        flutter, "test", "integration_test/google_device_test.dart", "--no-pub",
+        flutter, "test", "integration_test/native_sign_in_device_test.dart", "--no-pub",
         "--no-uninstall", "--reporter=expanded", "-d", device.identifier,
     ]
     cleanup_ok = False
@@ -94,22 +94,22 @@ def main(phase="exchange"):
                 if time.monotonic() - started > 780:
                     raise h.ValidationFailure("google_validation_timeout")
                 output = os.pread(output_file.fileno(), 32 * 1024 * 1024, 0).decode("utf-8", errors="replace")
-                markers = set(re.findall(r"GOOGLE_(STAGE|GATE_PASS) ([a-z_]+)", output))
+                markers = set(re.findall(r"NATIVE_AUTH_(STAGE|GATE_PASS) ([a-z_]+)", output))
                 for kind, label in markers - observed:
                     if (kind == "STAGE" and label in STAGES) or (kind == "GATE_PASS" and label in expected):
-                        print("GOOGLE_" + kind + " " + label, flush=True)
+                        print("NATIVE_AUTH_" + kind + " " + label, flush=True)
                         observed.add((kind, label))
                 time.sleep(1)
             output = os.pread(output_file.fileno(), 32 * 1024 * 1024, 0).decode("utf-8", errors="replace")
-            gates = set(re.findall(r"GOOGLE_GATE_PASS ([a-z_]+)", output))
-            failures = set(re.findall(r"GOOGLE_GATE_FAILED ([a-z_0-9]+)", output))
+            gates = set(re.findall(r"NATIVE_AUTH_GATE_PASS ([a-z_]+)", output))
+            failures = set(re.findall(r"NATIVE_AUTH_GATE_FAILED ([a-z_0-9]+)", output))
             report.update({
                 "gates": sorted(gates & expected), "failures": sorted(failures),
-                "success": process.returncode == 0 and gates == expected and "All tests passed!" in output,
+                "success": process.returncode == 0 and not failures and gates == expected and "All tests passed!" in output,
                 "seconds": round(time.monotonic() - started, 1),
             })
             for failure in sorted(failures):
-                print("GOOGLE_GATE_FAILED " + failure, flush=True)
+                print("NATIVE_AUTH_GATE_FAILED " + failure, flush=True)
             code, diagnostic = h.captured(device.prefix + [
                 "shell", "run-as", ANDROID_PACKAGE, "cat", DIAGNOSTIC,
             ])
