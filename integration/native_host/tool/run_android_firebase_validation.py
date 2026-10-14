@@ -2,10 +2,13 @@
 """Real FCM test on the dedicated host, with private one-use runtime input.
 
 The user handles the notification prompt. The Firebase console sends one test
-notification to the privately captured token. No server key, real app data,
-device setting changes, UI automation or compiled credentials are used.
+notification to the privately captured token in delivery mode. Rotation mode
+checks token replacement and logout without sending a message. No server key,
+real app data, device setting changes, UI automation or compiled credentials
+are used.
 """
 
+import argparse
 import hashlib
 import json
 import os
@@ -34,6 +37,14 @@ EXPECTED = {
     "explicit_stop_and_backend_logout",
     "test_token_retired_and_private_handoff_removed",
 }
+ROTATION_EXPECTED = (EXPECTED - {
+    "awaiting_console_foreground_message",
+    "real_foreground_message_received_via_adapter",
+}) | {
+    "real_fcm_token_rotated",
+    "rotated_token_registered_and_coalesced",
+    "logout_suppresses_registration_with_live_token",
+}
 OPTIONAL = {"awaiting_user_notification_permission"}
 
 
@@ -46,6 +57,15 @@ def private_json(path):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--mode", choices=("delivery", "rotation"), default="delivery")
+    args = parser.parse_args()
+    expected = ROTATION_EXPECTED if args.mode == "rotation" else EXPECTED
+    report_path = h.HOST / ("evidence/android-firebase-" + args.mode + "-20261014.json")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps({
+        "success": False, "status": "setup_started", "mode": args.mode,
+    }, indent=2) + "\n")
     secret_dir = h.HOST.parents[1] / ".secrets"
     config = private_json(secret_dir / "live-contract.json")
     firebase = private_json(secret_dir / "firebase-sdk/google-services.json")
@@ -58,6 +78,7 @@ def main():
         raise h.ValidationFailure("dedicated_firebase_app_required")
     user = config["users"][0]
     payload = {
+        "mode": args.mode,
         "api_origin": h.ORIGIN,
         "project_id": h.PROJECT,
         "email": user["email"],
@@ -71,101 +92,110 @@ def main():
     }
     device = Device("android")
     device.stop()
+    device.must(["shell", "run-as", ANDROID_PACKAGE, "test", "!", "-e", INPUT])
     device.must(["shell", "run-as", ANDROID_PACKAGE, "test", "!", "-e", READY])
-    device.must([
-        "shell", "run-as", ANDROID_PACKAGE, "sh", "-c",
-        shlex.quote("umask 077; cat > " + INPUT),
-    ], payload=json.dumps(payload).encode())
-    if device.must([
-        "shell", "run-as", ANDROID_PACKAGE, "stat", "-c", "%a", INPUT,
-    ]).strip() != "600":
-        raise h.ValidationFailure("runtime_input_mode_invalid")
-    payload.clear()
-    config.clear()
-    firebase.clear()
-    flutter = shutil.which("flutter")
-    if not flutter:
-        raise h.ValidationFailure("flutter_missing")
-    command = [
-        flutter, "test", "integration_test/firebase_device_test.dart",
-        "--no-pub", "--no-uninstall", "--reporter=expanded", "-d", device.identifier,
-    ]
     token_path = secret_dir / "firebase-sdk/device-test-token.json"
-    started = time.monotonic()
-    report = {
-        "platform": "Android", "device": "Seeker", "real_firebase": True,
-        "real_anythink_backend": True,
-        "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    }
-    with tempfile.TemporaryFile() as output_file:
-        process = subprocess.Popen(
-            command, cwd=h.HOST, stdin=subprocess.DEVNULL, stdout=output_file,
-            stderr=subprocess.STDOUT, start_new_session=True,
-        )
-        announced = False
-        observed_gates = set()
-        try:
-            while process.poll() is None:
-                if time.monotonic() - started > 900:
-                    raise h.ValidationFailure("firebase_validation_timeout")
-                # pread leaves the child writer's shared file offset untouched.
-                current_output = os.pread(output_file.fileno(), 32 * 1024 * 1024, 0).decode("utf-8", errors="replace")
-                for gate in set(re.findall(r"FIREBASE_GATE_PASS ([a-z_]+)", current_output)) - observed_gates:
-                    if gate in EXPECTED | OPTIONAL:
-                        print("FIREBASE_GATE_PASS " + gate, flush=True)
-                        observed_gates.add(gate)
-                if not announced:
-                    code, ready = h.captured(device.prefix + [
-                        "shell", "run-as", ANDROID_PACKAGE, "cat", READY,
-                    ])
-                    if not code:
-                        try:
-                            decoded = json.loads(ready)
-                        except json.JSONDecodeError:
-                            decoded = None
-                        if isinstance(decoded, dict) and decoded.get("stage") == "foreground_ready" and isinstance(decoded.get("token"), str):
-                            fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-                            with os.fdopen(fd, "w") as stream:
-                                json.dump(decoded, stream)
-                            os.chmod(token_path, 0o600)
-                            report["backend_device_id"] = decoded.get("backend_device_id")
-                            announced = True
-                            print("FIREBASE_READY private single-device token available for console test", flush=True)
-                time.sleep(1)
-            output = os.pread(output_file.fileno(), 32 * 1024 * 1024, 0).decode("utf-8", errors="replace")
-            gates = set(re.findall(r"FIREBASE_GATE_PASS ([a-z_]+)", output))
-            failures = set(re.findall(r"FIREBASE_GATE_FAILED ([a-z_0-9]+)", output))
-            report.update({
-                "gates": sorted(gates & (EXPECTED | OPTIONAL)),
-                "failures": sorted(failures),
-                "success": process.returncode == 0 and EXPECTED <= gates and gates <= EXPECTED | OPTIONAL and "All tests passed!" in output,
-                "seconds": round(time.monotonic() - started, 1),
-            })
-            report_path = h.HOST / "evidence/android-firebase-20261014.json"
-            report_path.parent.mkdir(parents=True, exist_ok=True)
-            if not report["success"]:
-                report_path.write_text(json.dumps(report, indent=2) + "\n")
-                for failure in sorted(failures):
-                    print("FIREBASE_GATE_FAILED " + failure, flush=True)
-                raise h.ValidationFailure("firebase_live_validation_failed")
+    if token_path.exists() or token_path.is_symlink():
+        raise h.ValidationFailure("preexisting_private_token_handoff")
+    try:
+        device.must([
+            "shell", "run-as", ANDROID_PACKAGE, "sh", "-c",
+            shlex.quote("umask 077; cat > " + INPUT),
+        ], payload=json.dumps(payload).encode())
+        if device.must([
+            "shell", "run-as", ANDROID_PACKAGE, "stat", "-c", "%a", INPUT,
+        ]).strip() != "600":
+            raise h.ValidationFailure("runtime_input_mode_invalid")
+        payload.clear()
+        config.clear()
+        firebase.clear()
+        flutter = shutil.which("flutter")
+        if not flutter:
+            raise h.ValidationFailure("flutter_missing")
+        command = [
+            flutter, "test", "integration_test/firebase_device_test.dart",
+            "--no-pub", "--no-uninstall", "--reporter=expanded", "-d", device.identifier,
+        ]
+        started = time.monotonic()
+        report = {
+            "mode": args.mode,
+            "platform": "Android", "device": "Seeker", "real_firebase": True,
+            "real_anythink_backend": True,
+            "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        with tempfile.TemporaryFile() as output_file:
+            process = subprocess.Popen(
+                command, cwd=h.HOST, stdin=subprocess.DEVNULL, stdout=output_file,
+                stderr=subprocess.STDOUT, start_new_session=True,
+            )
+            announced = False
+            observed_gates = set()
             try:
-                device.must(["shell", "run-as", ANDROID_PACKAGE, "test", "!", "-e", INPUT])
-                device.must(["shell", "run-as", ANDROID_PACKAGE, "test", "!", "-e", READY])
-            except h.ValidationFailure:
-                report["success"] = False
-                report["failures"] = ["private_handoff_survived"]
-                report_path.write_text(json.dumps(report, indent=2) + "\n")
-                raise
-            apk = h.HOST / "build/app/outputs/flutter-apk/app-debug.apk"
-            report["integration_apk_sha256"] = hashlib.sha256(apk.read_bytes()).hexdigest()
-            report_path.write_text(json.dumps(report, indent=2) + "\n")
-            print("FIREBASE_VALIDATION_PASS real token, registration and foreground delivery", flush=True)
-        finally:
-            if process.poll() is None:
-                h._stop_process_group(process)
+                while process.poll() is None:
+                    if time.monotonic() - started > 900:
+                        raise h.ValidationFailure("firebase_validation_timeout")
+                    # pread leaves the child writer's shared file offset untouched.
+                    current_output = os.pread(output_file.fileno(), 32 * 1024 * 1024, 0).decode("utf-8", errors="replace")
+                    for gate in set(re.findall(r"FIREBASE_GATE_PASS ([a-z_]+)", current_output)) - observed_gates:
+                        if gate in expected | OPTIONAL:
+                            print("FIREBASE_GATE_PASS " + gate, flush=True)
+                            observed_gates.add(gate)
+                    if args.mode == "delivery" and not announced:
+                        code, ready = h.captured(device.prefix + [
+                            "shell", "run-as", ANDROID_PACKAGE, "cat", READY,
+                        ])
+                        if not code:
+                            try:
+                                decoded = json.loads(ready)
+                            except json.JSONDecodeError:
+                                decoded = None
+                            if isinstance(decoded, dict) and decoded.get("stage") == "foreground_ready" and isinstance(decoded.get("token"), str):
+                                fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                                with os.fdopen(fd, "w") as stream:
+                                    json.dump(decoded, stream)
+                                os.chmod(token_path, 0o600)
+                                report["backend_device_id"] = decoded.get("backend_device_id")
+                                announced = True
+                                print("FIREBASE_READY private single-device token available for console test", flush=True)
+                    time.sleep(1)
+                output = os.pread(output_file.fileno(), 32 * 1024 * 1024, 0).decode("utf-8", errors="replace")
+                gates = set(re.findall(r"FIREBASE_GATE_PASS ([a-z_]+)", output))
+                failures = set(re.findall(r"FIREBASE_GATE_FAILED ([a-z_0-9]+)", output))
+                report.update({
+                    "gates": sorted(gates & (expected | OPTIONAL)),
+                    "failures": sorted(failures),
+                    "success": process.returncode == 0 and not failures and expected <= gates and gates <= expected | OPTIONAL and "All tests passed!" in output,
+                    "seconds": round(time.monotonic() - started, 1),
+                })
+                if not report["success"]:
+                    report_path.write_text(json.dumps(report, indent=2) + "\n")
+                    for failure in sorted(failures):
+                        print("FIREBASE_GATE_FAILED " + failure, flush=True)
+                    raise h.ValidationFailure("firebase_live_validation_failed")
+                try:
+                    device.must(["shell", "run-as", ANDROID_PACKAGE, "test", "!", "-e", INPUT])
+                    device.must(["shell", "run-as", ANDROID_PACKAGE, "test", "!", "-e", READY])
+                except h.ValidationFailure:
+                    report["success"] = False
+                    report["failures"] = ["private_handoff_survived"]
+                    report_path.write_text(json.dumps(report, indent=2) + "\n")
+                    raise
+                apk = h.HOST / "build/app/outputs/flutter-apk/app-debug.apk"
+                report["integration_apk_sha256"] = hashlib.sha256(apk.read_bytes()).hexdigest()
+            finally:
+                if process.poll() is None:
+                    h._stop_process_group(process)
+    finally:
+        try:
             device.stop()
-            device.must(["shell", "run-as", ANDROID_PACKAGE, "rm", "-f", INPUT])
+        finally:
             token_path.unlink(missing_ok=True)
+            for path in (INPUT, READY):
+                device.must(["shell", "run-as", ANDROID_PACKAGE, "rm", "-f", path])
+                device.must(["shell", "run-as", ANDROID_PACKAGE, "test", "!", "-e", path])
+    report["private_runtime_files_removed"] = True
+    report_path.write_text(json.dumps(report, indent=2) + "\n")
+    print("FIREBASE_VALIDATION_PASS " + args.mode, flush=True)
 
 
 if __name__ == "__main__":

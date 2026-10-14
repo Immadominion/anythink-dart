@@ -16,7 +16,7 @@ import 'package:path_provider/path_provider.dart';
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   testWidgets(
-    'real Android Firebase registration and foreground delivery',
+    'real Android Firebase registration and selected provider checks',
     (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -52,6 +52,8 @@ Future<void> _run() async {
   await inputFile.delete();
   final input = jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>;
   bytes.fillRange(0, bytes.length, 0);
+  final mode = input['mode'] ?? 'delivery';
+  _require(mode == 'delivery' || mode == 'rotation', 'unsupported_mode');
   _require(
     input['api_origin'] == 'https://api.uk01-lon.anythink.cloud' &&
         input['project_id'] == '19006800',
@@ -136,29 +138,60 @@ Future<void> _run() async {
     );
     _pass('duplicate_registration_coalesced');
 
-    final received = Completer<void>();
-    subscription = push.messages.listen((message) {
-      if (message.notification?.title == 'Anythink SDK validation' &&
-          message.notification?.body == 'Foreground delivery check') {
-        if (!received.isCompleted) received.complete();
-      }
-    });
-    // App-private handoff for the console's single-device test only. The runner
-    // copies this privately; neither token nor session can reach console output.
-    await readyFile.writeAsString(
-      jsonEncode({
-        'token': token,
-        'stage': 'foreground_ready',
-        'backend_device_id': registration.registration!.id,
-      }),
-      flush: true,
-    );
-    _pass('awaiting_console_foreground_message');
-    await received.future.timeout(
-      const Duration(minutes: 5),
-      onTimeout: () => throw const _GateFailure('foreground_message_timeout'),
-    );
-    _pass('real_foreground_message_received_via_adapter');
+    if (mode == 'rotation') {
+      await messaging.deleteToken();
+      final replacement = await messaging.getToken().timeout(
+        const Duration(seconds: 60),
+      );
+      _require(
+        replacement != null && replacement.isNotEmpty && replacement != token,
+        'token_did_not_rotate',
+      );
+      _pass('real_fcm_token_rotated');
+      final rotated = await push.synchronize();
+      _require(
+        (rotated.status == PushSyncStatus.registered ||
+                rotated.status == PushSyncStatus.alreadyRegistered) &&
+            rotated.registration != null,
+        'rotated_registration_missing',
+      );
+      _require(
+        (await push.synchronize()).status == PushSyncStatus.alreadyRegistered,
+        'rotated_registration_not_coalesced',
+      );
+      _pass('rotated_token_registered_and_coalesced');
+      final signOut = await client.auth.signOut();
+      _require(signOut.remoteError == null, 'remote_sign_out_unconfirmed');
+      _require(
+        (await push.synchronize()).status == PushSyncStatus.signedOut,
+        'logout_registration_not_suppressed',
+      );
+      _pass('logout_suppresses_registration_with_live_token');
+    } else {
+      final received = Completer<void>();
+      subscription = push.messages.listen((message) {
+        if (message.notification?.title == 'Anythink SDK validation' &&
+            message.notification?.body == 'Foreground delivery check') {
+          if (!received.isCompleted) received.complete();
+        }
+      });
+      // App-private handoff for the console's single-device test only. The runner
+      // copies this privately; neither token nor session can reach console output.
+      await readyFile.writeAsString(
+        jsonEncode({
+          'token': token,
+          'stage': 'foreground_ready',
+          'backend_device_id': registration.registration!.id,
+        }),
+        flush: true,
+      );
+      _pass('awaiting_console_foreground_message');
+      await received.future.timeout(
+        const Duration(minutes: 5),
+        onTimeout: () => throw const _GateFailure('foreground_message_timeout'),
+      );
+      _pass('real_foreground_message_received_via_adapter');
+    }
     _require(automaticErrors.isEmpty, 'automatic_sync_error');
     await push.dispose();
     final signOut = await client.auth.signOut();

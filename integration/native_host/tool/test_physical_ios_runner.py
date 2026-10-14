@@ -10,6 +10,23 @@ import run_physical_ios_session_validation as runner
 
 
 class PhysicalIosRunnerTest(unittest.TestCase):
+    def test_launch_options_do_not_become_application_arguments(self):
+        def capture(command, **kwargs):
+            bundle_index = command.index(runner.BUNDLE)
+            self.assertLess(command.index("--device"), bundle_index)
+            self.assertLess(command.index("--timeout"), bundle_index)
+            self.assertLess(command.index("--json-output"), bundle_index)
+            self.assertEqual(command[bundle_index + 1:], ["app-argument"])
+            result = Path(command[command.index("--json-output") + 1])
+            result.write_text('{"result": {"process": 42}}')
+            return 0, ""
+
+        with patch.object(runner.h, "captured", side_effect=capture):
+            result = runner.Phone("synthetic-device").command([
+                "process", "launch", runner.BUNDLE, "app-argument",
+            ])
+        self.assertEqual(result, {"process": 42})
+
     def test_retried_launch_cannot_certify_a_phase(self):
         output = "DEVICE_GATE_PASS password_sign_in\nAll tests passed.\n"
         required = {"password_sign_in"}

@@ -254,7 +254,7 @@ final class AnythinkApplePurchases {
       () =>
           !_closed &&
           _client.auth.generation == update.generation &&
-          _client.auth.currentSession != null,
+          _hasUsableSession,
     );
   }
 
@@ -314,9 +314,6 @@ final class AnythinkApplePurchases {
 
   Future<AnythinkUser> _identity(int generation) async {
     _checkGeneration(generation);
-    if (_client.auth.currentSession == null) {
-      throw const AuthRequiredException();
-    }
     final user = _client.auth.state.user ?? await _client.auth.getUser();
     _checkGeneration(generation);
     if (!RegExp(
@@ -375,7 +372,14 @@ final class AnythinkApplePurchases {
     if (_client.auth.generation != generation) {
       throw const SessionChangedException();
     }
+    if (!_hasUsableSession) throw const AuthRequiredException();
   }
+
+  // Refresh failure can invalidate authentication without changing identity
+  // generation, and an uncertain rotation may retain the previous token pair.
+  bool get _hasUsableSession =>
+      _client.auth.currentSession != null &&
+      _client.auth.state.status != AuthStatus.reauthenticationRequired;
 
   /// Stops observing native events; does not close the shared Anythink client,
   /// sign out, finish pending transactions, or cancel an already-open store UI.

@@ -146,12 +146,14 @@ final class AnythinkFirebasePush with WidgetsBindingObserver {
       );
       _authSubscription = client.auth.states.listen(
         (state) {
-          if (client.auth.generation != _observedGeneration) {
+          if (client.auth.generation != _observedGeneration ||
+              state.status == AuthStatus.reauthenticationRequired) {
             _observedGeneration = client.auth.generation;
             _invalidate();
           }
           if (state.status == AuthStatus.authenticated ||
-              state.status == AuthStatus.signedOut) {
+              state.status == AuthStatus.signedOut ||
+              state.status == AuthStatus.reauthenticationRequired) {
             _automaticallySynchronize();
           }
         },

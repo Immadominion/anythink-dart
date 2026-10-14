@@ -348,6 +348,85 @@ void main() {
     expect(store.completed, isEmpty);
   });
 
+  for (final status in [401, 500]) {
+    test(
+      'refresh failure $status invalidates purchase access and actions',
+      () async {
+        final update = await emit(_purchase());
+        final verified = await purchases.verify(update);
+        final generation = client.auth.generation;
+        final original = api.handle;
+        api.handle = (request) => request.uri.path.endsWith('/refresh')
+            ? WireReply.json({'error': 'refresh_failed'}, status: status)
+            : original(request);
+
+        await expectLater(
+          client.auth.refreshSession(),
+          throwsA(isA<ApiException>()),
+        );
+        expect(client.auth.generation, generation);
+        expect(client.auth.state.status, AuthStatus.reauthenticationRequired);
+        expect(verified.isCurrentAccount, isFalse);
+        expect(verified.hasKnownPlanAccess, isFalse);
+
+        final product = ProductDetails(
+          id: 'premium.monthly',
+          title: 'Premium',
+          description: '',
+          price: r'$5',
+          rawPrice: 5,
+          currencyCode: 'USD',
+        );
+        for (final operation in <Future<Object?> Function()>[
+          () => purchases.purchase(product),
+          purchases.restore,
+          () => purchases.restoreOriginalTransaction('123'),
+          () => purchases.verify(update),
+          () => purchases.complete(verified),
+        ]) {
+          await expectLater(operation, throwsA(isA<AuthRequiredException>()));
+        }
+        expect(store.purchasedProduct, isNull);
+        expect(store.restoreAccount, isNull);
+        expect(store.completed, isEmpty);
+        expect(api.at('/apple/verify'), hasLength(1));
+      },
+    );
+  }
+
+  test(
+    'refresh failure during store availability prevents purchase launch',
+    () async {
+      final available = Completer<void>();
+      store.availabilityGate = available.future;
+      final product = ProductDetails(
+        id: 'premium.monthly',
+        title: 'Premium',
+        description: '',
+        price: r'$5',
+        rawPrice: 5,
+        currencyCode: 'USD',
+      );
+      final pending = purchases.purchase(product);
+      final rejected = expectLater(
+        pending,
+        throwsA(isA<AuthRequiredException>()),
+      );
+      await store.availabilityStarted.future;
+      final original = api.handle;
+      api.handle = (request) => request.uri.path.endsWith('/refresh')
+          ? WireReply.json({'error': 'refresh_failed'}, status: 500)
+          : original(request);
+      await expectLater(
+        client.auth.refreshSession(),
+        throwsA(isA<ApiException>()),
+      );
+      available.complete();
+      await rejected;
+      expect(store.purchasedProduct, isNull);
+    },
+  );
+
   test(
     'restore and original transaction ID verification are separate operations',
     () async {
@@ -576,12 +655,16 @@ final class _TestStore implements ApplePurchaseStore {
   bool failCompletion = false;
   String? failureMethod;
   Future<void>? completionGate;
+  Future<void>? availabilityGate;
+  final availabilityStarted = Completer<void>();
   Future<void> close() => controller.close();
   @override
   Stream<List<PurchaseDetails>> get updates => controller.stream;
   @override
   Future<bool> isAvailable() async {
     _fail('availability');
+    if (!availabilityStarted.isCompleted) availabilityStarted.complete();
+    await availabilityGate;
     return available;
   }
 

@@ -1,5 +1,7 @@
 ## 0.1.0-dev.1
 
+- Cancel pending registration and discard cached results when session refresh
+  requires a new sign-in.
 - Add opt-in Firebase Messaging registration for Android and iOS.
 - Add explicit permission requests, token/session/lifecycle synchronization,
   cancellation, error reporting and owned-subscription cleanup.

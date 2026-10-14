@@ -29,7 +29,7 @@ backend token verification.
 
 See [validation](../../docs/validation.md) for completed checks. Still required:
 
-- Successful Google and Apple exchange, cancellation, repeated sign-in,
+- Successful Google and Apple exchange, Apple cancellation, repeated sign-in,
   identity mismatch and account changes while native UI is pending.
 - Physical iOS push delivery, token refresh, denial, dead tokens, action buttons
   and account-switch ownership behavior.

@@ -25,7 +25,7 @@ Checks used ordinary users and synthetic data in a dedicated disposable project.
 | Search | Owner-filtered hits, private-body search, highlighting and similarity passed. Counts/facets included hidden rows, and anonymous highlights/similarity exposed private synthetic fields. See [search limits](search-validation.md). |
 | Consumer billing | Catalog, own-data, routing and access reads passed. No paid checkout, card setup, charge, redemption or sandbox purchase was executed. |
 | Workflows | The ordinary test role could not retain the trigger permission; the API returned 403. Successful workflow execution is not verified. |
-| Google sign-in | Android acquired a real credential, but Anythink rejected exchange because the project had no default role. Successful exchange and native cancellation remain unverified. |
+| Google sign-in | Android native cancellation passed without backend exchange or a saved session. Credential acquisition passed separately, but Anythink rejected exchange because the project had no default role. Successful exchange remains unverified. |
 
 ## Native checks
 
@@ -35,8 +35,9 @@ logout and durable session removal. The physical iOS run used Flutter 3.47.7 /
 Dart 3.13.5 with Xcode 26.5. Additional interruption checks passed on Android and
 the simulator. Lock/unlock, backup and upgrade behavior still need device tests.
 
-Android Firebase checks covered foreground delivery, background notification tap
-and terminated launch. iOS APNs delivery, token rotation, permission denial,
+Android Firebase checks covered foreground delivery, background notification tap,
+terminated launch, real token replacement, replacement registration, duplicate
+suppression and suppression after logout. iOS APNs delivery, permission denial,
 notification actions and account-switch privacy need separate validation.
 
 The normal native app builds and launches on Android and iOS. Provider sign-in,

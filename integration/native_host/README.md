@@ -61,6 +61,11 @@ python3 integration/native_host/tool/run_android_session_validation.py \
   --config .secrets/live-contract.json
 ```
 
+With private Firebase configuration prepared, run
+`python3 integration/native_host/tool/run_android_firebase_validation.py --mode rotation`
+to check token replacement and logout on Android. This sends no notification;
+the default `delivery` mode waits for a Firebase console test message.
+
 The [live validation guide](../../docs/live-validation.md) describes private
 configuration. Runners transfer credentials through app-private files, never
 build defines, and refuse to overwrite a saved session. Inspect a failed gate

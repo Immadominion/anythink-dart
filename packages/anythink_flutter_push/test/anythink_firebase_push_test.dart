@@ -133,6 +133,9 @@ void main() {
           );
         } else if (request.uri.path.endsWith('/auth/v1/logout')) {
           request.response.statusCode = 204;
+        } else if (request.uri.path.endsWith('/auth/v1/refresh')) {
+          request.response.statusCode = 500;
+          request.response.write('{"error":"refresh_failed"}');
         } else if (request.uri.path.endsWith('/push/devices')) {
           expect(request.method, 'POST');
           registrations.add(Map<String, Object?>.from(jsonDecode(body) as Map));
@@ -242,6 +245,32 @@ void main() {
     expect(registrations, isEmpty);
     expect((await push.synchronize()).status, PushSyncStatus.registered);
   });
+
+  test(
+    'uncertain refresh cancels pending registration without success',
+    () async {
+      requestEntered = Completer<void>();
+      requestRelease = Completer<void>();
+      final starting = push.start();
+      await requestEntered!.future;
+      final generation = client.auth.generation;
+      await expectLater(
+        client.auth.refreshSession(),
+        throwsA(isA<ApiException>()),
+      );
+      expect(client.auth.generation, generation);
+      expect(client.auth.currentSession, isNotNull);
+      expect(client.auth.state.status, AuthStatus.reauthenticationRequired);
+      requestRelease!.complete();
+      expect((await starting).status, PushSyncStatus.superseded);
+      expect((await push.synchronize()).status, PushSyncStatus.signedOut);
+      expect(
+        results.where((result) => result.status == PushSyncStatus.registered),
+        isEmpty,
+      );
+      expect(automaticErrors, isEmpty);
+    },
+  );
 
   test('nested metadata is snapshotted before native token lookup', () async {
     final tags = <Object?>['original'];

@@ -34,8 +34,9 @@ def device_json(arguments, *, timeout=60):
     with tempfile.TemporaryDirectory(prefix="anythink-ios-command-") as temp:
         result_path = Path(temp) / "result.json"
         code, _ = h.captured([
-            "xcrun", "devicectl", *arguments,
+            "xcrun", "devicectl",
             "--timeout", str(timeout), "--json-output", str(result_path),
+            *arguments,
         ], timeout=timeout + 10)
         if code or not result_path.is_file():
             raise h.ValidationFailure("physical_ios_command_failed")
@@ -75,7 +76,8 @@ class Phone:
 
     def command(self, arguments, *, timeout=60):
         return device_json([
-            "device", *arguments, "--device", self.identifier,
+            "device", *arguments[:2], "--device", self.identifier,
+            *arguments[2:],
         ], timeout=timeout)
 
     def files(self, subdirectory):
