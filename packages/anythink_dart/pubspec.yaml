@@ -1,0 +1,15 @@
+name: anythink_dart
+description: A modular Dart client for Anythink auth, records, search, files, workflows, subscriptions and push.
+version: 0.1.0-dev.1
+publish_to: none
+repository: https://github.com/Immadominion/anythink-dart
+issue_tracker: https://github.com/Immadominion/anythink-dart/issues
+environment:
+  sdk: ^3.8.0
+resolution: workspace
+dependencies:
+  http: ^1.6.0
+  http_parser: ^4.1.2
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0

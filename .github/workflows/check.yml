@@ -1,0 +1,72 @@
+name: SDK checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.44.2'
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: bash tool/check.sh
+      - run: python3 tool/package_preflight.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: package-preflight
+          path: build/package-preflight/
+  core-minimum:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        resolution: [latest, lowest-direct]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dart-lang/setup-dart@6afc89df92d6eb3834022f73cd65adc8cdfcb92d # v1
+        with:
+          sdk: '3.8.0'
+      - run: python3 tool/check_package.py --package anythink_dart --resolution ${{ matrix.resolution }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: core-minimum-${{ matrix.resolution }}
+          path: build/compatibility/
+  flutter-minimum:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        resolution: [latest, lowest-direct]
+        target:
+          - package: anythink_flutter
+            flutter: '3.38.1'
+          - package: anythink_flutter_push
+            flutter: '3.38.1'
+          - package: anythink_flutter_purchases
+            flutter: '3.41.0'
+          - package: anythink_flutter_auth
+            flutter: '3.44.0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: ${{ matrix.target.flutter }}
+          channel: stable
+          cache: true
+      - run: python3 tool/check_package.py --package ${{ matrix.target.package }} --resolution ${{ matrix.resolution }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: ${{ matrix.target.package }}-minimum-${{ matrix.resolution }}
+          path: build/compatibility/

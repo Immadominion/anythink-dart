@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" role="img" aria-labelledby="title desc">
+  <title id="title">One core. Add what you need.</title>
+  <desc id="desc">The Dart core handles sign-in, data, files and payments. Optional Flutter packages add secure sessions, Google and Apple sign-in, Firebase push and StoreKit 2 purchases.</desc>
+  <rect width="1600" height="760" rx="32" fill="#f7f6f2"/>
+  <g font-family="Helvetica, Arial, sans-serif" fill="#24241f">
+    <text x="64" y="76" font-size="18" font-weight="700" letter-spacing="3" fill="#a24b20">THE SDK AT A GLANCE</text>
+    <text x="64" y="151" font-size="58" font-weight="700" letter-spacing="-2">One core. Add what you need.</text>
+    <rect x="64" y="213" width="468" height="480" rx="32" fill="#24241f"/>
+    <text x="102" y="268" font-size="18" letter-spacing="2" fill="#f4ab83">START HERE</text>
+    <text x="102" y="342" font-size="49" font-weight="700" fill="#f7f6f2">Dart core</text>
+    <g font-size="27" fill="#e2e1d8">
+      <text x="102" y="411">Sign-in &amp; sessions</text>
+      <text x="102" y="458">Records &amp; search</text>
+      <text x="102" y="505">Files &amp; workflows</text>
+      <text x="102" y="552">Payments &amp; subscriptions</text>
+    </g>
+    <path d="M102 597 H490" stroke="#56574e"/>
+    <text x="102" y="651" font-size="22" fill="#bdbeb1">Works without Flutter.</text>
+    <g fill="#fff" stroke="#e1e0d7" stroke-width="2">
+      <rect x="558" y="213" width="476" height="227" rx="30"/>
+      <rect x="1060" y="213" width="476" height="227" rx="30"/>
+      <rect x="558" y="466" width="476" height="227" rx="30"/>
+      <rect x="1060" y="466" width="476" height="227" rx="30"/>
+    </g>
+    <g fill="#a24b20" font-size="18" font-weight="700" letter-spacing="2">
+      <text x="592" y="259">01 / FLUTTER</text>
+      <text x="1094" y="259">02 / AUTH</text>
+      <text x="592" y="512">03 / PUSH</text>
+      <text x="1094" y="512">04 / PURCHASES</text>
+    </g>
+    <g font-size="35" font-weight="700" letter-spacing="-.8">
+      <text x="592" y="321">Keep sessions safe.</text>
+      <text x="1094" y="321">Native sign-in.</text>
+      <text x="592" y="574">Stay in touch.</text>
+      <text x="1094" y="574">Handle purchases.</text>
+    </g>
+    <g fill="#64665e" font-size="25">
+      <text x="592" y="376">Secure storage &amp; app lifecycle</text>
+      <text x="1094" y="376">Google &amp; Apple</text>
+      <text x="592" y="629">Firebase notifications</text>
+      <text x="1094" y="629">Apple StoreKit 2</text>
+    </g>
+  </g>
+</svg>

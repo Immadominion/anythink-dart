@@ -1,0 +1,31 @@
+name: anythink_flutter_auth
+description: Optional native Google and Apple sign-in adapters for Anythink.
+version: 0.1.0-dev.1
+publish_to: none
+repository: https://github.com/Immadominion/anythink-dart
+issue_tracker: https://github.com/Immadominion/anythink-dart/issues
+resolution: workspace
+
+environment:
+  sdk: ^3.12.0
+  flutter: '>=3.44.0'
+
+dependencies:
+  anythink_dart: ^0.1.0-dev.1
+  flutter:
+    sdk: flutter
+  google_sign_in: ^7.2.0
+  sign_in_with_apple: ^8.2.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+  google_sign_in_platform_interface: ^3.1.0
+  http: ^1.6.0
+  plugin_platform_interface: ^2.1.8
+  sign_in_with_apple_platform_interface: ^2.0.0
+
+platforms:
+  android:
+  ios:

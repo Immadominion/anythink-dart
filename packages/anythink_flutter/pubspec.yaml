@@ -1,0 +1,26 @@
+name: anythink_flutter
+description: Flutter secure session storage and lifecycle integration for Anythink.
+version: 0.1.0-dev.1
+publish_to: none
+repository: https://github.com/Immadominion/anythink-dart
+issue_tracker: https://github.com/Immadominion/anythink-dart/issues
+resolution: workspace
+
+environment:
+  sdk: ^3.10.0
+  flutter: '>=3.38.1'
+
+dependencies:
+  anythink_dart: ^0.1.0-dev.1
+  flutter:
+    sdk: flutter
+  flutter_secure_storage: ^11.2.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+platforms:
+  android:
+  ios:

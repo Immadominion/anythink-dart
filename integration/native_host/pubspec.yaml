@@ -1,0 +1,34 @@
+name: anythink_native_host
+description: Private native compilation and session-validation harness for the Anythink SDK.
+version: 0.1.0+1
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.12.0
+  flutter: '>=3.44.0'
+
+dependencies:
+  anythink_dart: ^0.1.0-dev.1
+  anythink_flutter: ^0.1.0-dev.1
+  anythink_flutter_auth: ^0.1.0-dev.1
+  anythink_flutter_push: ^0.1.0-dev.1
+  anythink_flutter_purchases: ^0.1.0-dev.1
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  firebase_core: ^4.14.0
+  firebase_messaging: ^16.7.0
+  google_sign_in: ^7.2.0
+  http: ^1.6.0
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  path_provider: ^2.1.5
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/anythink-logo.png

@@ -1,0 +1,24 @@
+name: anythink_flutter_purchases
+description: Opt-in StoreKit 2 purchase coordination and Anythink server verification for Flutter.
+version: 0.1.0-dev.1
+publish_to: none
+repository: https://github.com/Immadominion/anythink-dart
+issue_tracker: https://github.com/Immadominion/anythink-dart/issues
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+resolution: workspace
+dependencies:
+  anythink_dart: ^0.1.0-dev.1
+  flutter:
+    sdk: flutter
+  in_app_purchase: ^3.3.0
+  in_app_purchase_storekit: ^0.4.13+2
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^6.0.0
+
+platforms:
+  ios:
+  macos:
