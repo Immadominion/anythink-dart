@@ -81,6 +81,7 @@ class SessionController extends ChangeNotifier {
   String? message;
 
   bool get configured => _client != null;
+  AnythinkClient? get client => _client;
   bool get signedIn =>
       _client?.auth.currentSession != null &&
       _client?.auth.state.status != AuthStatus.reauthenticationRequired;

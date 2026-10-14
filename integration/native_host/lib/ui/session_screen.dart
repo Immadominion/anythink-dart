@@ -4,10 +4,16 @@ import '../configuration.dart';
 import '../session_controller.dart';
 import 'app_theme.dart';
 import 'components.dart';
+import '../demo/notes_workspace.dart';
 
 class SessionValidationScreen extends StatefulWidget {
-  const SessionValidationScreen({super.key, required this.configuration});
+  const SessionValidationScreen({
+    super.key,
+    required this.configuration,
+    this.showRecords = false,
+  });
   final NativeHostConfiguration configuration;
+  final bool showRecords;
 
   @override
   State<SessionValidationScreen> createState() =>
@@ -69,7 +75,16 @@ class _SessionValidationScreenState extends State<SessionValidationScreen> {
                     children: [
                       _header(),
                       const SizedBox(height: 48),
-                      if (_session.signedIn) _account() else _signInForm(),
+                      if (_session.signedIn && widget.showRecords)
+                        NotesWorkspace(
+                          key: ValueKey(_session.user?.id),
+                          client: _session.client!,
+                          onSignOut: _session.busy ? null : _session.signOut,
+                        )
+                      else if (_session.signedIn)
+                        _account()
+                      else
+                        _signInForm(),
                       if (_session.message case final message?) ...[
                         const SizedBox(height: 20),
                         SessionNotice(

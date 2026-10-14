@@ -8,7 +8,8 @@ packages so native builds check their dependencies together.
   <img src="../../docs/media/readme/native-sign-in.png" alt="Anythink native test app sign-in screen" width="300" />
 </p>
 
-This is a development test app, not the planned product demo. The
+The default entrypoint is the development test app. The separate
+[notes demo](../../docs/demo.md) runs from `lib/demo_main.dart`. The
 [validation record](VALIDATION.md) separates real-device results from automated
 tests; [provider readiness](PROVIDER_READINESS.md) lists Google, Apple, Firebase
 and purchase setup.
@@ -23,7 +24,7 @@ flutter build apk --debug --no-pub \
   --dart-define=ANYTHINK_API_ORIGIN=https://your-region.anythink.cloud \
   --dart-define=ANYTHINK_PROJECT_ID=your-project-id
 
-flutter build ios --simulator --debug --no-codesign --no-pub \
+flutter build ios --simulator --debug --no-pub \
   --dart-define=ANYTHINK_API_ORIGIN=https://your-region.anythink.cloud \
   --dart-define=ANYTHINK_PROJECT_ID=your-project-id
 ```

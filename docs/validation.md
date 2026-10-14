@@ -49,6 +49,13 @@ The normal native app builds and launches on Android and iOS. Provider sign-in,
 push and purchases are opt-in integrations and are not enabled in its sign-in UI.
 See [provider setup](../integration/native_host/PROVIDER_READINESS.md).
 
+## Notes demo
+
+The separate `lib/demo_main.dart` entrypoint passed real Seeker checks for
+password sign-in, reading notes, creating and reading back a note, restoring
+the session and notes after a process restart, and clearing the workspace on
+sign-out. See [demo setup](demo.md).
+
 ## Before a release
 
 - Complete Google/Apple native sign-in exchange and account-change checks.
